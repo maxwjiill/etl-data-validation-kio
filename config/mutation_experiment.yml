@@ -1,17 +1,17 @@
 experiment:
   name: demo_validation_impact
   baseline:
-    stg_run_id: __STG_RUN_ID__
-    dds_run_id: __DDS_RUN_ID__
+    stg_run_id: manual_input_stg_20260212_150335
+    dds_run_id: manual_input_dds_20260212_150335
   defaults:
     dag_id_stg: manual_stg_input
     dag_id_dds: manual_dds_input
     snapshot_limit: 200
     truncate_dds_before_iteration: true
-    stg_mutations_config: src/app2/mutators/configs/stg_mutations.yml
-    dds_mutations_config: src/app2/mutators/configs/dds_mutations.yml
-    stg_validation_config: src/app2/validators/configs/stg_validation.yml
-    dds_validation_config: src/app2/validators/configs/dds_validation.yml
+    stg_mutations_config: /Users/maksim/Documents/git/etl-data-validation-kio/src/app2/mutators/configs/stg_mutations.yml
+    dds_mutations_config: /Users/maksim/Documents/git/etl-data-validation-kio/src/app2/mutators/configs/dds_mutations.yml
+    stg_validation_config: /Users/maksim/Documents/git/etl-data-validation-kio/src/app2/validators/configs/stg_validation.yml
+    dds_validation_config: /Users/maksim/Documents/git/etl-data-validation-kio/src/app2/validators/configs/dds_validation.yml
   iterations:
   - name: 'STG мутация: swap_teams (пример искажения home/away)'
     kind: stg_mutation

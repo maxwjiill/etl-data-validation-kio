@@ -1,0 +1,93 @@
+{
+  "input_run_dir": "/Users/maksim/Documents/git/etl-data-validation-kio/input/raw_football_api/manual__2026-01-09T10_59_39.137217_00_00",
+  "stg_run_id": "manual_input_stg_20260212_151012",
+  "dds_run_id": "manual_input_dds_20260212_151012",
+  "tools_dag_id": "manual_stage_tools_20260212_151018",
+  "mutation_report_path": null,
+  "summary_csv": "/Users/maksim/Documents/git/etl-data-validation-kio/output/validation_summary_20260212_151045.csv",
+  "db_log_path": "/Users/maksim/Documents/git/etl-data-validation-kio/logs/db_export_20260212_151045.log",
+  "tools_results": [
+    {
+      "stage": "E",
+      "tool": "gx",
+      "status": "OK",
+      "targets": 2,
+      "success": 1,
+      "failed": 1,
+      "repeats": 1
+    },
+    {
+      "stage": "E",
+      "tool": "soda",
+      "status": "OK",
+      "targets": 2,
+      "success": 1,
+      "failed": 1,
+      "repeats": 1
+    },
+    {
+      "stage": "T",
+      "tool": "dbt",
+      "status": "OK",
+      "targets": 2,
+      "success": 0,
+      "failed": 2,
+      "repeats": 1
+    },
+    {
+      "stage": "T",
+      "tool": "gx",
+      "status": "OK",
+      "targets": 2,
+      "success": 2,
+      "failed": 0,
+      "repeats": 1
+    },
+    {
+      "stage": "T",
+      "tool": "soda",
+      "status": "OK",
+      "targets": 2,
+      "success": 2,
+      "failed": 0,
+      "repeats": 1
+    },
+    {
+      "stage": "T",
+      "tool": "sql",
+      "status": "OK",
+      "targets": 2,
+      "success": 2,
+      "failed": 0,
+      "repeats": 1
+    },
+    {
+      "stage": "L",
+      "tool": "gx",
+      "status": "OK",
+      "targets": 2,
+      "success": 2,
+      "failed": 0,
+      "repeats": 1
+    },
+    {
+      "stage": "L",
+      "tool": "soda",
+      "status": "OK",
+      "targets": 2,
+      "success": 2,
+      "failed": 0,
+      "repeats": 1
+    },
+    {
+      "stage": "L",
+      "tool": "dbt",
+      "status": "OK",
+      "targets": 2,
+      "success": 0,
+      "failed": 2,
+      "repeats": 1
+    }
+  ],
+  "timestamp": "2026-02-12T15:10:45.974322"
+}

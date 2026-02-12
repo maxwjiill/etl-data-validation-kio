@@ -7,6 +7,7 @@ import logging
 import os
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +15,7 @@ from typing import Any
 
 import yaml
 from dotenv import load_dotenv
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -67,8 +68,23 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default="output")
     parser.add_argument("--logs-dir", default="logs")
     parser.add_argument("--start-temp-db", action="store_true", help="Start/reset temp postgres in Docker before run.")
+    parser.add_argument(
+        "--keep-temp-db",
+        action="store_true",
+        help="Keep temporary postgres container after run (default: stop and remove volume).",
+    )
     parser.add_argument("--skip-mutations", action="store_true")
     parser.add_argument("--skip-tools", action="store_true")
+    parser.add_argument(
+        "--persist-mutation-report",
+        action="store_true",
+        help="Store mutation HTML report in logs/mutation_reports (default: disable report artifacts).",
+    )
+    parser.add_argument(
+        "--persist-tool-reports",
+        action="store_true",
+        help="Store tool reports in logs/etl_stage_reports (default: disable report artifacts).",
+    )
     return parser.parse_args()
 
 
@@ -83,6 +99,7 @@ def _setup_logging(logs_dir: Path) -> Path:
             logging.FileHandler(log_path, encoding="utf-8"),
             logging.StreamHandler(sys.stdout),
         ],
+        force=True,
     )
     return log_path
 
@@ -336,9 +353,11 @@ def _export_validation_summary(*, output_dir: Path, dag_id: str) -> Path:
     out_path = output_dir / f"validation_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
     engine = get_engine()
+    exported_at = datetime.now().isoformat()
     query = text(
         """
         SELECT
+            split_part(layer, '_', 1) AS stage,
             layer,
             tool,
             COALESCE(kind, 'unknown') AS kind,
@@ -346,8 +365,13 @@ def _export_validation_summary(*, output_dir: Path, dag_id: str) -> Path:
             SUM(checks_total) AS checks_total,
             SUM(checks_failed) AS checks_failed,
             ROUND(AVG(duration_ms)::numeric, 3) AS avg_duration_ms,
-            ROUND(AVG((meta_json->'resources'->>'cpu_percent_avg')::numeric)::numeric, 3) AS avg_cpu_percent,
-            ROUND(AVG((meta_json->'resources'->>'rss_kb')::numeric)::numeric, 3) AS avg_rss_kb
+            ROUND(COALESCE(STDDEV_POP(duration_ms), 0)::numeric, 3) AS std_duration_ms,
+            ROUND(AVG(NULLIF(meta_json->'resources'->>'cpu_percent_avg', '')::numeric)::numeric, 3) AS avg_cpu_percent,
+            ROUND(COALESCE(STDDEV_POP(NULLIF(meta_json->'resources'->>'cpu_percent_avg', '')::numeric), 0)::numeric, 3) AS std_cpu_percent,
+            ROUND(AVG(NULLIF(meta_json->'resources'->>'rss_kb', '')::numeric)::numeric, 3) AS avg_rss_kb,
+            ROUND(COALESCE(STDDEV_POP(NULLIF(meta_json->'resources'->>'rss_kb', '')::numeric), 0)::numeric, 3) AS std_rss_kb,
+            MIN(started_at) AS first_started_at,
+            MAX(finished_at) AS last_finished_at
         FROM tech.validation_run
         WHERE dag_id = :dag_id
         GROUP BY layer, tool, COALESCE(kind, 'unknown')
@@ -361,6 +385,9 @@ def _export_validation_summary(*, output_dir: Path, dag_id: str) -> Path:
         writer = csv.DictWriter(
             f,
             fieldnames=[
+                "exported_at",
+                "tools_dag_id",
+                "stage",
                 "layer",
                 "tool",
                 "kind",
@@ -368,13 +395,21 @@ def _export_validation_summary(*, output_dir: Path, dag_id: str) -> Path:
                 "checks_total",
                 "checks_failed",
                 "avg_duration_ms",
+                "std_duration_ms",
                 "avg_cpu_percent",
                 "avg_rss_kb",
+                "std_cpu_percent",
+                "std_rss_kb",
+                "first_started_at",
+                "last_finished_at",
             ],
         )
         writer.writeheader()
         for row in rows:
-            writer.writerow(dict(row))
+            row_out = dict(row)
+            row_out["exported_at"] = exported_at
+            row_out["tools_dag_id"] = dag_id
+            writer.writerow(row_out)
     return out_path
 
 
@@ -385,6 +420,118 @@ def _start_temp_db_if_requested(enabled: bool) -> None:
     if not script.exists():
         raise FileNotFoundError(f"Missing helper script: {script}")
     subprocess.run([sys.executable, str(script)], check=True, cwd=REPO_ROOT)
+
+
+def _stop_temp_db_if_requested(enabled: bool) -> None:
+    if not enabled:
+        return
+    compose_file = REPO_ROOT / "docker-compose.experiments.yml"
+    if not compose_file.exists():
+        raise FileNotFoundError(f"Missing compose file: {compose_file}")
+    subprocess.run(
+        ["docker", "compose", "-f", str(compose_file), "down", "-v"],
+        check=True,
+        cwd=REPO_ROOT,
+    )
+
+
+def _collect_related_run_ids(*, stg_run_id: str, dds_run_id: str) -> list[str]:
+    engine = get_engine()
+    query = text(
+        """
+        SELECT DISTINCT run_id
+        FROM tech.etl_batch_status
+        WHERE run_id = :stg_run_id
+           OR run_id = :dds_run_id
+           OR parent_run_id = :stg_run_id
+        ORDER BY run_id
+        """
+    )
+    with engine.begin() as conn:
+        rows = conn.execute(query, {"stg_run_id": stg_run_id, "dds_run_id": dds_run_id}).scalars().all()
+    return [str(v) for v in rows]
+
+
+def _export_db_logs(
+    *,
+    logs_dir: Path,
+    related_run_ids: list[str],
+    tools_dag_id: str | None,
+) -> Path:
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    out_path = logs_dir / f"db_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    engine = get_engine()
+
+    audit_rows: list[dict[str, Any]] = []
+    batch_rows: list[dict[str, Any]] = []
+    validation_rows: list[dict[str, Any]] = []
+
+    with engine.begin() as conn:
+        if related_run_ids:
+            audit_stmt = (
+                text(
+                    """
+                    SELECT audit_id, dag_id, run_id, layer, entity_name, status, started_at, finished_at, rows_processed, message
+                    FROM tech.etl_load_audit
+                    WHERE run_id IN :run_ids
+                    ORDER BY audit_id
+                    """
+                ).bindparams(bindparam("run_ids", expanding=True))
+            )
+            audit_rows = [dict(row) for row in conn.execute(audit_stmt, {"run_ids": related_run_ids}).mappings().all()]
+
+            batch_stmt = (
+                text(
+                    """
+                    SELECT batch_id, dag_id, run_id, parent_run_id, layer, status, attempts, created_at, last_updated_at, error_message
+                    FROM tech.etl_batch_status
+                    WHERE run_id IN :run_ids OR parent_run_id IN :run_ids
+                    ORDER BY batch_id
+                    """
+                ).bindparams(bindparam("run_ids", expanding=True))
+            )
+            batch_rows = [dict(row) for row in conn.execute(batch_stmt, {"run_ids": related_run_ids}).mappings().all()]
+
+        if tools_dag_id:
+            validation_stmt = text(
+                """
+                SELECT
+                    validation_run_id, dag_id, run_id, parent_run_id, layer, tool, kind,
+                    status, started_at, finished_at, duration_ms, checks_total, checks_failed
+                FROM tech.validation_run
+                WHERE dag_id = :dag_id
+                ORDER BY validation_run_id
+                """
+            )
+            validation_rows = [dict(row) for row in conn.execute(validation_stmt, {"dag_id": tools_dag_id}).mappings().all()]
+
+    with out_path.open("w", encoding="utf-8") as f:
+        f.write("=== ETL LOAD AUDIT ===\n")
+        for row in audit_rows:
+            f.write(
+                f"[audit_id={row['audit_id']}] dag={row['dag_id']} run={row['run_id']} "
+                f"layer={row['layer']} entity={row['entity_name']} status={row['status']} "
+                f"started={row['started_at']} finished={row['finished_at']} rows={row['rows_processed']} "
+                f"message={row['message']}\n"
+            )
+
+        f.write("\n=== ETL BATCH STATUS ===\n")
+        for row in batch_rows:
+            f.write(
+                f"[batch_id={row['batch_id']}] dag={row['dag_id']} run={row['run_id']} parent={row['parent_run_id']} "
+                f"layer={row['layer']} status={row['status']} attempts={row['attempts']} "
+                f"created={row['created_at']} updated={row['last_updated_at']} error={row['error_message']}\n"
+            )
+
+        f.write("\n=== VALIDATION RUNS ===\n")
+        for row in validation_rows:
+            f.write(
+                f"[validation_run_id={row['validation_run_id']}] dag={row['dag_id']} run={row['run_id']} "
+                f"parent={row['parent_run_id']} layer={row['layer']} tool={row['tool']} kind={row['kind']} "
+                f"status={row['status']} started={row['started_at']} finished={row['finished_at']} "
+                f"duration_ms={row['duration_ms']} checks_total={row['checks_total']} checks_failed={row['checks_failed']}\n"
+            )
+    return out_path
 
 
 def main() -> None:
@@ -406,68 +553,108 @@ def main() -> None:
 
     log_path = _setup_logging(logs_dir)
     logging.info("Logs: %s", log_path)
-    _start_temp_db_if_requested(args.start_temp_db)
+    logging.info("Local input mode enabled. External football API client is not used in this run.")
 
-    input_root = Path(args.input_dir)
-    if not input_root.is_absolute():
-        input_root = REPO_ROOT / input_root
-    input_run_dir = _resolve_input_run_dir(input_root, args.input_run_dir)
-    payload_files = _load_payload_files(input_run_dir)
-
-    stg_run_id = _build_run_id("manual_input_stg")
-    dds_run_id = _build_run_id("manual_input_dds")
-    baseline = BaselineRuns(stg_run_id=stg_run_id, dds_run_id=dds_run_id)
-
-    rows_loaded = _load_stg_from_input(payload_files=payload_files, dag_id="manual_stg_input", stg_run_id=stg_run_id)
-    logging.info("Loaded STG rows: %s", rows_loaded)
-
-    _run_dds(dag_id="manual_dds_input", stg_run_id=stg_run_id, dds_run_id=dds_run_id)
-    logging.info("DDS load finished: %s", dds_run_id)
-
-    _set_baseline_ids(tools_config_path, baseline)
-    _set_baseline_ids(mutation_config_path, baseline)
-    _normalize_mutation_defaults_paths(mutation_config_path)
-    logging.info("Baseline IDs updated in config files")
-
+    stg_run_id: str | None = None
+    dds_run_id: str | None = None
+    input_run_dir: Path | None = None
     mutation_report_path: Path | None = None
-    if not args.skip_mutations:
-        exp_cfg = load_experiment_config(mutation_config_path)
-        mutation_report_path = run_experiment(exp_cfg, output_dir=logs_dir / "mutation_reports")
-        logging.info("Mutation experiment report: %s", mutation_report_path)
-
-    tools_dag_id = f"manual_stage_tools_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    tools_dag_id: str | None = None
     tools_results: list[dict[str, Any]] = []
-    if not args.skip_tools:
-        tools_results = _run_tools(
-            config_path=tools_config_path,
-            output_dir=logs_dir / "etl_stage_reports",
-            dag_id=tools_dag_id,
-        )
-        logging.info("Stage tool runs: %s", len(tools_results))
+    summary_csv: Path | None = None
+    db_log_path: Path | None = None
 
-    summary_csv = _export_validation_summary(output_dir=output_dir, dag_id=tools_dag_id) if not args.skip_tools else None
+    try:
+        _start_temp_db_if_requested(args.start_temp_db)
 
-    run_context = {
-        "input_run_dir": str(input_run_dir),
-        "stg_run_id": stg_run_id,
-        "dds_run_id": dds_run_id,
-        "tools_dag_id": tools_dag_id if not args.skip_tools else None,
-        "mutation_report_path": str(mutation_report_path) if mutation_report_path else None,
-        "summary_csv": str(summary_csv) if summary_csv else None,
-        "tools_results": tools_results,
-        "timestamp": datetime.now().isoformat(),
-    }
-    context_path = REPO_ROOT / "config" / "last_run_context.json"
-    context_path.write_text(json.dumps(run_context, ensure_ascii=False, indent=2), encoding="utf-8")
+        input_root = Path(args.input_dir)
+        if not input_root.is_absolute():
+            input_root = REPO_ROOT / input_root
+        input_run_dir = _resolve_input_run_dir(input_root, args.input_run_dir)
+        payload_files = _load_payload_files(input_run_dir)
 
-    print("STG run_id:", stg_run_id)
-    print("DDS run_id:", dds_run_id)
-    print("Input run dir:", input_run_dir)
-    if mutation_report_path:
-        print("Mutation report:", mutation_report_path)
-    if summary_csv:
-        print("Summary CSV:", summary_csv)
-    print("Context file:", context_path)
+        stg_run_id = _build_run_id("manual_input_stg")
+        dds_run_id = _build_run_id("manual_input_dds")
+        baseline = BaselineRuns(stg_run_id=stg_run_id, dds_run_id=dds_run_id)
+
+        rows_loaded = _load_stg_from_input(payload_files=payload_files, dag_id="manual_stg_input", stg_run_id=stg_run_id)
+        logging.info("Loaded STG rows: %s", rows_loaded)
+
+        _run_dds(dag_id="manual_dds_input", stg_run_id=stg_run_id, dds_run_id=dds_run_id)
+        logging.info("DDS load finished: %s", dds_run_id)
+
+        _set_baseline_ids(tools_config_path, baseline)
+        _set_baseline_ids(mutation_config_path, baseline)
+        _normalize_mutation_defaults_paths(mutation_config_path)
+        logging.info("Baseline IDs updated in config files")
+
+        if not args.skip_mutations:
+            exp_cfg = load_experiment_config(mutation_config_path)
+            if args.persist_mutation_report:
+                mutation_report_path = run_experiment(exp_cfg, output_dir=logs_dir / "mutation_reports")
+                logging.info("Mutation experiment report: %s", mutation_report_path)
+            else:
+                with tempfile.TemporaryDirectory(prefix="kio_mutation_reports_") as tmp_dir:
+                    run_experiment(exp_cfg, output_dir=Path(tmp_dir))
+                logging.info("Mutation experiment completed (report artifacts disabled)")
+
+        tools_dag_id = f"manual_stage_tools_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        if not args.skip_tools:
+            if args.persist_tool_reports:
+                tool_reports_dir = logs_dir / "etl_stage_reports"
+                tools_results = _run_tools(
+                    config_path=tools_config_path,
+                    output_dir=tool_reports_dir,
+                    dag_id=tools_dag_id,
+                )
+                logging.info("Stage tool reports saved to: %s", tool_reports_dir)
+            else:
+                with tempfile.TemporaryDirectory(prefix="kio_stage_reports_") as tmp_dir:
+                    tools_results = _run_tools(
+                        config_path=tools_config_path,
+                        output_dir=Path(tmp_dir),
+                        dag_id=tools_dag_id,
+                    )
+                logging.info("Stage tool runs completed (report artifacts disabled)")
+
+            logging.info("Stage tool runs: %s", len(tools_results))
+            summary_csv = _export_validation_summary(output_dir=output_dir, dag_id=tools_dag_id)
+
+        related_run_ids = _collect_related_run_ids(stg_run_id=stg_run_id, dds_run_id=dds_run_id)
+        db_log_path = _export_db_logs(logs_dir=logs_dir, related_run_ids=related_run_ids, tools_dag_id=tools_dag_id)
+        logging.info("DB logs exported to: %s", db_log_path)
+
+        run_context = {
+            "input_run_dir": str(input_run_dir),
+            "stg_run_id": stg_run_id,
+            "dds_run_id": dds_run_id,
+            "tools_dag_id": tools_dag_id if not args.skip_tools else None,
+            "mutation_report_path": str(mutation_report_path) if mutation_report_path else None,
+            "summary_csv": str(summary_csv) if summary_csv else None,
+            "db_log_path": str(db_log_path) if db_log_path else None,
+            "tools_results": tools_results,
+            "timestamp": datetime.now().isoformat(),
+        }
+        context_path = REPO_ROOT / "config" / "last_run_context.json"
+        context_path.write_text(json.dumps(run_context, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        print("STG run_id:", stg_run_id)
+        print("DDS run_id:", dds_run_id)
+        print("Input run dir:", input_run_dir)
+        if mutation_report_path:
+            print("Mutation report:", mutation_report_path)
+        if summary_csv:
+            print("Summary CSV:", summary_csv)
+        if db_log_path:
+            print("DB logs:", db_log_path)
+        print("Context file:", context_path)
+    finally:
+        if args.start_temp_db and not args.keep_temp_db:
+            try:
+                _stop_temp_db_if_requested(True)
+                logging.info("Temporary DB container and volume removed")
+            except Exception:
+                logging.exception("Failed to stop temporary DB")
 
 
 if __name__ == "__main__":

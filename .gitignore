@@ -9,6 +9,7 @@
 # Runtime artifacts
 # /logs/
 # /output/
+.venv/
 /.env
 
 # Fallback ignores (if someone builds in the source dir)

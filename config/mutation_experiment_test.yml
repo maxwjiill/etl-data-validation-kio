@@ -1,0 +1,35 @@
+experiment:
+  name: demo_validation_impact
+  baseline:
+    stg_run_id: manual_input_stg_20260212_151012
+    dds_run_id: manual_input_dds_20260212_151012
+  defaults:
+    dag_id_stg: manual_stg_input
+    dag_id_dds: manual_dds_input
+    snapshot_limit: 200
+    truncate_dds_before_iteration: true
+    stg_mutations_config: /Users/maksim/Documents/git/etl-data-validation-kio/src/app2/mutators/configs/stg_mutations.yml
+    dds_mutations_config: /Users/maksim/Documents/git/etl-data-validation-kio/src/app2/mutators/configs/dds_mutations.yml
+    stg_validation_config: /Users/maksim/Documents/git/etl-data-validation-kio/src/app2/validators/configs/stg_validation.yml
+    dds_validation_config: /Users/maksim/Documents/git/etl-data-validation-kio/src/app2/validators/configs/dds_validation.yml
+  iterations:
+  - name: 'STG мутация: swap_teams (пример искажения home/away)'
+    kind: stg_mutation
+    from_stg_run_id: baseline
+    stg_mutations_enable:
+      matches:
+      - swap_teams
+    env:
+      APP2_STG_SWAP_TEAMS_COUNT: '5'
+  - name: 'DDS мутация: вставка аномального fact_match (валидации включены, ожидаем
+      FAIL)'
+    kind: dds_mutation
+    from_stg_run_id: baseline
+    dds_mutations_enable:
+    - fact_match
+  - name: 'STG mutation: matches drop_matches_key (schema mismatch)'
+    kind: stg_mutation
+    from_stg_run_id: baseline
+    stg_mutations_enable:
+      matches:
+      - drop_matches_key

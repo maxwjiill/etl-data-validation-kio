@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 
 @dataclass
 class Settings:
-    football_api_key: str
     postgres_db: str
     postgres_user: str
     postgres_password: str
@@ -20,7 +19,6 @@ def load_settings() -> Settings:
     load_dotenv(dotenv_path=env_path)
 
     return Settings(
-        football_api_key=os.getenv("FOOTBALL_API_KEY", ""),
         postgres_db=os.getenv("POSTGRES_DB", ""),
         postgres_user=os.getenv("POSTGRES_USER", ""),
         postgres_password=os.getenv("POSTGRES_PASSWORD", ""),
