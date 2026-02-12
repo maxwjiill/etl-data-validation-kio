@@ -1,0 +1,233 @@
+% Статья для журнала «Компьютерные инструменты в образовании» (КИО)
+% Основано на материалах ВКР: METELKINMA_repository_for-the_polytechnic_thesis/VKR/
+% Кодировка файла: UTF-8
+\documentclass[intlimits,twoside,a4paper,11pt]{article}
+
+\usepackage[utf8]{inputenc}
+
+% Шаблон журнала (kioj4.sty предоставлен руководителем)
+\usepackage[eqsecnum]{kioj4}
+
+% Доп. пакеты (минимально необходимые)
+\usepackage{array}
+\usepackage{graphicx}
+
+\graphicspath{{figures/}}
+
+% Рубрика журнала
+\journalsectionnoimage{informatics}
+
+% Год известен, номер выпуска неизвестен
+\issue{2026}{-}{edu}
+
+% УДК (уточняется редакцией при необходимости)
+\udknumber{004.4}
+
+% Название: краткий вариант в [] и вариант в верхнем регистре в {}
+\title[Воспроизводимое сравнение средств валидации данных в ETL-пайплайнах]{ВОСПРОИЗВОДИМОЕ ЭКСПЕРИМЕНТАЛЬНОЕ СРАВНЕНИЕ СРЕДСТВ ВАЛИДАЦИИ ДАННЫХ В ETL-ПАЙПЛАЙНАХ}
+
+% Авторы (email для автора I при необходимости заполнить перед подачей)
+\authorI[Метелкин М.~А.\affil{1}]{Метелкин Максим Александрович}
+\authorIpos{студент}
+\authorIemail{maxwjiill@gmail.com}
+\authorIorcid{orcid.org/0009-0003-6547-1102}
+
+\authorII[Пархоменко В.~А.\affil{1}]{Пархоменко Владимир Андреевич}
+\authorIIpos{ст. преподаватель}
+\authorIIemail{parhomenko.v@gmail.com}
+\authorIIorcid{orcid.org/0000-0001-7757-377X}
+
+\affiliation{1}{СПбПУ, Санкт-Петербургский политехнический университет Петра Великого, ул. Политехническая, дом 29, Санкт-Петербург, 195251, Россия}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Рост зависимости организаций от аналитики повышает требования к качеству данных, а ETL-пайплайны становятся ключевой точкой накопления и проявления дефектов на этапах извлечения, трансформации и загрузки. При этом на практике широко используются разные средства валидации данных, но выбор инструмента часто не подкреплен сопоставимыми измерениями качества обнаружения нарушений и эксплуатационной стоимости проверок.
+
+В работе предложен воспроизводимый экспериментальный протокол сравнения средств валидации на этапах ETL-пайплайна и выполнено сопоставление Great Expectations, SodaCL и dbt tests на едином наборе логических правил. Эксперименты проводятся в детерминированной среде с контролируемой инъекцией дефектов, а метрики времени и ресурсов фиксируются в техническом контуре наблюдаемости. Показано, что при функционально эквивалентном обнаружении нарушений инструменты существенно различаются по накладным расходам; также экспериментально подтверждена практическая целесообразность этапной стратегии валидации, комбинирующей проверки уровня пайплайна и ограничения целостности СУБД.
+
+\keywords etl-пайплайны, качество данных, валидация данных, воспроизводимые эксперименты, great expectations, sodacl, dbt tests.
+\autocitationexample
+% \acknowledgements Работа выполнена в рамках выпускной квалификационной работы по направлению «Прикладная информатика».
+\end{abstract}
+
+\section{ВВЕДЕНИЕ}
+Дефекты данных в ETL-пайплайнах приводят к искажению аналитических результатов и требуют системной постановки проверок качества на разных этапах обработки~\cite{KimballCaserta2004,Foidl2024}. Международные стандарты качества данных задают терминологию и модели (в частности, измерение валидности в ISO/IEC~25012), однако для практического применения требования необходимо операционализировать в виде конкретных проверок и измеримых метрик~\cite{ISO8000-1-2022,ISOIEC25012-2008}. Одновременно развивается экосистема инструментов контроля качества данных, но сопоставимые и воспроизводимые протоколы их сравнения остаются ограниченными, что затрудняет обоснованный выбор инструмента и стратегии валидации~\cite{EhrlingerWoess2022}.
+
+Цель работы --- сопоставить распространенные средства валидации данных в контексте ETL-пайплайна по двум группам метрик:
+\begin{enumerate}
+	\item качество обнаружения нарушений (факт наличия нарушений и число проваленных проверок);
+	\item эксплуатационная стоимость (время выполнения и потребление ресурсов).
+\end{enumerate}
+Дополнительно проверяется гипотеза о том, что этапная стратегия (комбинация проверок уровня пайплайна и ограничений целостности в реляционном слое) обеспечивает более выгодный компромисс «обнаружение--стоимость» по сравнению с универсальными стратегиями.
+
+\section{ОБЗОР РАБОТ}
+\subsection{Качество данных и валидация в ETL}
+ETL-пайплайны включают неоднородные источники, последовательности преобразований и режимы инкрементальной загрузки, что увеличивает число потенциальных точек возникновения дефектов~\cite{Walha2024,Ong2017ETLChallengesEGEMS}. В стандарте ISO~8000 качество данных рассматривается как характеристика данных в контексте требований и использования, а ISO/IEC~25012 формализует модель качества данных, где валидность выступает одним из ключевых измерений~\cite{ISO8000-1-2022,ISOIEC25012-2008}. Для инженерной практики это означает необходимость трансляции требований качества в набор проверок, привязанных к этапам пайплайна и типам нарушений (схема, полнота, согласованность, уникальность и др.).
+
+\subsection{Подходы к контролю качества и инструменты}
+Современные подходы к обеспечению качества в пайплайнах данных включают автоматизацию проверок, мониторинг метрик качества и интеграцию контроля в процесс поставки (CI/CD для данных)~\cite{Schelter2018AutoDQVerification,Yang2025CICDDataPipelinesDW}. Обзоры средств измерения и мониторинга качества данных отмечают разнообразие инструментов и отсутствие единых критериев сравнения, особенно при учете эксплуатационных характеристик~\cite{EhrlingerWoess2022}.
+
+На практике распространены фреймворки декларативной валидации и профилирования (например, Great Expectations и SodaCL), а также средства SQL-тестирования в контексте трансформаций (например, dbt tests). Эти инструменты отличаются по области применимости (сырые данные vs реляционные слои), формату правил и механизмам формирования отчетности, что делает важным их сравнение на едином наборе логических проверок и в контролируемой среде~\cite{GreatExpectationsDocs,SodaDocs}.
+
+\section{АРХИТЕКТУРА ИССЛЕДОВАТЕЛЬСКОГО СТЕНДА}
+Стенд включает: внешний источник данных; оркестратор Apache Airflow, управляющий жизненным циклом прогонов и обеспечивающий выполнение пайплайна в виде набора DAG; Python-приложение, реализующее извлечение данных и загрузку в STG, построение витрины DDS, а также поддерживающее контуры валидации и контролируемого внесения дефектов; хранилище PostgreSQL со слоями STG (raw JSON), DDS и техническим слоем TECH для аудита и учета статусов батчей; конфигурационные артефакты (.env и YAML), задающие параметры подключения, состав проверок, их критичность и сценарии контролируемого внесения дефектов (рис.~\ref{fig-testbed-arch}).
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=\textwidth]{ch2_architecture_diagram_gray.png}
+\caption{Архитектура стенда} \label{fig-testbed-arch}
+\end{figure}
+
+\section{ТЕСТИРОВАНИЕ СТЕНДА}
+Для подтверждения корректности экспериментальной среды и исключения влияния дефектов стенда на результаты сравнения используется многоуровневое тестирование: модульные, интеграционные и сквозные проверки обеспечивают устойчивое прохождение ключевого потока STG $\rightarrow$ DDS $\rightarrow$ MART и корректную фиксацию метрик прогонов в техническом контуре наблюдаемости; дополнительно применяются практики статического анализа и контроля качества, что повышает доверие к воспроизводимости измерений и позволяет интерпретировать различия метрик как свойства сравниваемых средств валидации, а не артефакты инфраструктуры.
+
+\section{ЭКСПЕРИМЕНТЫ}
+\subsection{Дизайн эксперимента и метрики}
+Сравнение выполнено для трех инструментов поствалидации: Great Expectations (GX), SodaCL и dbt tests. Для обеспечения функциональной сопоставимости используются идентичные логические правила (реализованные через SQL-запросы, подсчитывающие число нарушений) и единый набор данных. Эксперимент включает базовые прогоны и прогоны с контролируемыми изменениями, имитирующими типовые дефекты данных на этапах ETL; результаты агрегируются по повторным запускам. Для каждого прогона фиксируются метрики качества обнаружения (наличие нарушений и число проваленных проверок) и метрики стоимости выполнения (длительность, CPU, RAM), регистрируемые в техническом контуре наблюдаемости.
+
+Тестирование и экспериментальные прогоны выполняются в среде разработчика: Windows 11 Pro (64-bit, версия 10.0.22631, сборка 22631). Аппаратная конфигурация включала центральный процессор AMD Ryzen 5 7600X (6 физических ядер, 12 логических потоков, до 4.7 ГГц) и 32 ГБ оперативной памяти DDR5 (5600 МГц). Для обеспечения воспроизводимости используется контейнеризация Docker Compose и изоляция тестовой инфраструктуры.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.95\textwidth]{ch4_experiment_tools_architecture_gray.png}
+\caption{Архитектура экспериментального контура сравнения средств валидации данных} \label{fig-exp-arch}
+\end{figure}
+
+\subsection{Сравнение инструментов по этапам ETL}
+Для сопоставимых наборов правил инструменты демонстрируют функционально эквивалентное обнаружение нарушений, однако существенно различаются по накладным расходам. На этапе E (Extract/STG, сырые JSON-данные) SodaCL обеспечивает существенно меньшую длительность по сравнению с GX (в среднем 0.15~с против 2.23~с в экспериментальных прогонах). На этапе T (Transform/DDS) минимальные накладные расходы показывает SodaCL (около 0.07~с), GX занимает промежуточное положение (около 1.12~с), а dbt tests демонстрирует наибольшую длительность (около 4.62~с), что связано с особенностями выполнения тестов и накладными расходами запуска. На этапе L (Load/MART) различия усиливаются: GX является наиболее затратным (в среднем 40.71~с), тогда как SodaCL и dbt tests остаются существенно быстрее (2.76~с и 6.31~с соответственно); измерения времени и потребления ресурсов представлены на рис.~\ref{fig-perf}--\ref{fig-res}.
+
+\begin{table}[htb]
+\centering
+\caption{Показатели, используемые для построения графиков сравнения производительности (прогоны с контролируемыми изменениями данных; статистика по 10 повторным запускам)} \label{tbl-tools-by-stage}
+\small
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{|>{\centering\arraybackslash}p{1.5cm}|p{2.1cm}|>{\centering\arraybackslash}p{3.2cm}|>{\centering\arraybackslash}p{3.5cm}|>{\centering\arraybackslash}p{3.5cm}|}
+\hline
+{\small Этап} & {\small Инструмент} & {\small Длительность, с (среднее $\pm$ ст. отклонение)} & {\small CPU, \% (среднее $\pm$ ст. отклонение)} & {\small RAM, МБ (среднее $\pm$ ст. отклонение)} \\
+\hline
+E (STG) & GX & 2.23 $\pm$ 0.13 & 15.76 $\pm$ 1.29 & 365.11 $\pm$ 2.69 \\
+\hline
+E (STG) & SodaCL & 0.15 $\pm$ 0.01 & 10.90 $\pm$ 3.44 & 356.07 $\pm$ 0.45 \\
+\hline
+T (DDS) & GX & 1.12 $\pm$ 1.85 & 43.60 $\pm$ 9.03 & 373.85 $\pm$ 4.65 \\
+\hline
+T (DDS) & dbt tests & 4.62 $\pm$ 0.37 & 0.14 $\pm$ 0.12 & 354.60 $\pm$ 1.55 \\
+\hline
+T (DDS) & SodaCL & 0.07 $\pm$ 0.12 & 32.18 $\pm$ 12.62 & 377.95 $\pm$ 0.00 \\
+\hline
+L (MART) & GX & 40.71 $\pm$ 26.24 & 0.71 $\pm$ 0.12 & 363.04 $\pm$ 2.68 \\
+\hline
+L (MART) & dbt tests & 6.31 $\pm$ 1.76 & 0.09 $\pm$ 0.09 & 356.68 $\pm$ 1.57 \\
+\hline
+L (MART) & SodaCL & 2.76 $\pm$ 1.78 & 0.52 $\pm$ 0.24 & 358.55 $\pm$ 0.98 \\
+\hline
+\end{tabular}
+\normalsize
+\end{table}
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.92\textwidth]{ch4_experiment_performance_comparison_gray.png}
+\caption{Сравнение длительности выполнения валидации по этапам ETL (агрегированные результаты экспериментальных прогонов)} \label{fig-perf}
+\end{figure}
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.92\textwidth]{ch4_experiment_resource_consumption_cpu_ram_gray.png}
+\caption{Сравнение потребления CPU и RAM по инструментам валидации (экспериментальные прогоны)} \label{fig-res}
+\end{figure}
+
+\subsection{Сравнение стратегий: универсальный и этапный подход}
+Проверена гипотеза о преимуществах этапной стратегии, комбинирующей средства уровня пайплайна и ограничения целостности в реляционном слое: сравнивались универсальные стратегии (GX для всех этапов; SodaCL для всех этапов) и этапные стратегии (SodaCL + SQL constraints + SodaCL; SodaCL + SQL constraints + dbt tests). На прогонах с контролируемыми изменениями этапные стратегии демонстрируют более высокие метрики обнаружения нарушений (доля запусков с нарушениями около 23\% против 13\% у универсальных стратегий), при этом стратегия SodaCL+SQL+SodaCL сохраняет сопоставимую стоимость по времени относительно универсальной SodaCL (3.01~с против 3.06~с), а стратегия с dbt tests увеличивает длительность (6.81~с). Универсальная стратегия GX является наиболее затратной по времени (43.35~с) и не показывает преимущества по метрикам обнаружения относительно универсальной SodaCL (табл.~\ref{tbl-strategy}).
+
+\begin{table}[htb]
+\centering
+\caption{Сравнение стратегий валидации на прогонах с контролируемыми изменениями данных (агрегированные метрики)} \label{tbl-strategy}
+\small
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{|p{3.3cm}|>{\centering\arraybackslash}p{0.9cm}|>{\centering\arraybackslash}p{2.7cm}|>{\centering\arraybackslash}p{2.7cm}|>{\centering\arraybackslash}p{3.2cm}|}
+\hline
+{\small Стратегия} & {\small $n$} & {\small Доля запусков с нарушениями, \%} & {\small Проваленных проверок, шт. (среднее)} & {\small Длительность, с ($\textit{mean}\pm\textit{std}$)} \\
+\hline
+Универсальная (GX) & 186 & 12.90 & 0.226 & 43.349 $\pm$ 24.549 \\
+\hline
+Универсальная (SodaCL) & 208 & 13.94 & 0.236 & 3.064 $\pm$ 1.894 \\
+\hline
+Этапная (SodaCL + SQL + SodaCL) & 208 & 23.56 & 0.418 & 3.012 $\pm$ 1.785 \\
+\hline
+Этапная (SodaCL + SQL + dbt) & 207 & 23.19 & 0.425 & 6.814 $\pm$ 1.777 \\
+\hline
+\end{tabular}
+\normalsize
+\end{table}
+
+\subsection{Ограничения эксперимента}
+Эксперимент имеет следующие ограничения:
+\begin{enumerate}
+	\item Эксперимент выполнен на репрезентативном, но ограниченном наборе данных предметной области. Выводы о производительности инструментов применимы к данному масштабу данных; поведение при существенном увеличении объема (миллионы строк) требует дополнительного исследования.
+	\item Эксперимент использует фиксированный набор правил для GX/dbt/SodaCL. Выводы о сопоставимости результатов применимы к указанным наборам правил; расширение набора проверок может выявить дополнительные различия между инструментами.
+	\item dbt tests не применялся на этапе E (STG) в силу ограничений инструмента по работе с сырыми JSON-данными.
+	\item Все прогоны выполнены в единой инфраструктуре. Поведение инструментов в распределенной инфраструктуре или при параллельном выполнении проверок не исследовалось.
+\end{enumerate}
+
+\section{ЗАКЛЮЧЕНИЕ}
+Предложен воспроизводимый протокол экспериментального сравнения средств валидации данных в ETL-пайплайнах с унифицированным учетом метрик обнаружения и стоимости выполнения в техническом контуре наблюдаемости. Экспериментально показано, что при эквивалентном обнаружении нарушений на сопоставимых наборах правил инструменты существенно различаются по накладным расходам, причем различия зависят от этапа ETL и формата данных. Дополнительно подтверждено, что этапная стратегия, комбинирующая проверки уровня пайплайна и ограничения целостности СУБД, повышает чувствительность к нарушениям при сопоставимой стоимости по времени, что делает ее практичным выбором для реляционных слоев ETL при ограниченном бюджете на проверки.
+
+\begin{thebibliography}{99}
+\bibitem{KimballCaserta2004} {\it Kimball R., Caserta J.} The Data Warehouse ETL Toolkit: Practical Techniques for Extracting, Cleaning, Conforming, and Delivering Data. Wiley, 2004.
+\bibitem{Walha2024} {\it Walha A., Ghozzi F., Gargouri F.} Data integration from traditional to big data: main features and comparisons of ETL approaches. The Journal of Supercomputing, 2024, vol.~80, no.~19, pp.~26687--26725.
+\bibitem{Foidl2024} {\it Foidl H., Golendukhina V., Ramler R., Felderer M.} Data pipeline quality: Influencing factors, root causes of data-related issues, and processing problem areas for developers. Journal of Systems and Software, 2024, vol.~207, 111855.
+\bibitem{ISO8000-1-2022} {\it International Organization for Standardization.} ISO~8000-1:2022 --- Data quality --- Part~1: Overview. ISO, 2022.
+\bibitem{ISOIEC25012-2008} {\it ISO/IEC.} ISO/IEC~25012:2008 --- Software engineering --- Software product Quality Requirements and Evaluation (SQuaRE) --- Data quality model. ISO, 2008.
+\bibitem{EhrlingerWoess2022} {\it Ehrlinger L., W{\"o}{\ss} W.} A Survey of Data Quality Measurement and Monitoring Tools. Frontiers in Big Data, 2022, vol.~5, 850611.
+\bibitem{Schelter2018AutoDQVerification} {\it Schelter S. et al.} Automating Large-Scale Data Quality Verification. PVLDB, 2018, vol.~11, no.~12, pp.~1781--1794.
+\bibitem{Yang2025CICDDataPipelinesDW} {\it Yang H. et al.} Unlocking the Power of CI/CD for Data Pipelines in Distributed Data Warehouses. PVLDB, 2025, vol.~18, no.~12, pp.~4887--4895.
+\bibitem{Ong2017ETLChallengesEGEMS} {\it Ong T. et al.} A Framework for Classification of Electronic Health Data Extraction-Transformation-Loading Challenges in Data Network Participation. eGEMs, 2017, vol.~5, no.~1, p.~10.
+\bibitem{GreatExpectationsDocs} {\it Great Expectations.} Great Expectations Documentation, 2025.
+\bibitem{SodaDocs} {\it Soda.} Soda Documentation, 2025.
+\end{thebibliography}
+
+\begin{translatedpart}
+\title{Reproducible experimental comparison of data validation tools in ETL pipelines}
+
+\authorI[Metelkin M.~A.\affil{1}]{Metelkin Maksim Aleksandrovich}
+\authorIpos{student, Peter the Great St. Petersburg Polytechnic University}
+
+\authorII[Parkhomenko V.~A.\affil{1}]{Parkhomenko Vladimir Andreevich}
+\authorIIpos{senior lecturer, Peter the Great St. Petersburg Polytechnic University}
+
+\affiliation{1}{SPbPU, Peter the Great St. Petersburg Polytechnic University, Politekhnicheskaya str., house 29, Saint-Petersburg, 195251, Russia}
+
+\maketranslatedtitle
+
+\begin{abstract}
+Data quality issues in ETL pipelines frequently lead to incorrect analytical results, while the ecosystem of data validation tools keeps expanding. However, tool selection is often not supported by reproducible, comparable measurements of both violation detection quality and operational cost.
+
+This paper proposes a reproducible experimental protocol for comparing ETL-stage data validation tools and reports results for Great Expectations, SodaCL and dbt tests using an identical set of logical rules. Experiments are executed in a deterministic environment with controlled defect injection; runtime and resource metrics are captured in a unified observability layer. The study shows that, while detection results can be functionally equivalent for comparable rule sets, the tools differ significantly in overhead depending on the ETL stage. The paper also confirms the practical benefits of a stage-based validation strategy combining pipeline-level checks with database integrity constraints.
+
+\keywords etl pipelines, data quality, data validation, reproducible experiments, great expectations, sodacl, dbt tests.
+\autocitationexample
+% \acknowledgements The work is based on the author’s undergraduate thesis.
+\end{abstract}
+
+\begin{thebibliography}{99}
+\bibitem{ref-en-kimball-caserta-2004} Kimball R., Caserta J. The Data Warehouse ETL Toolkit: Practical Techniques for Extracting, Cleaning, Conforming, and Delivering Data. Wiley, 2004.
+\bibitem{ref-en-walha-2024} Walha A., Ghozzi F., Gargouri F. Data integration from traditional to big data: main features and comparisons of ETL approaches. The Journal of Supercomputing, 2024, vol.~80, no.~19, pp.~26687--26725.
+\bibitem{ref-en-foidl-2024} Foidl H., Golendukhina V., Ramler R., Felderer M. Data pipeline quality: Influencing factors, root causes of data-related issues, and processing problem areas for developers. Journal of Systems and Software, 2024, vol.~207, 111855.
+\bibitem{ref-en-iso-8000-1-2022} International Organization for Standardization. ISO~8000-1:2022 --- Data quality --- Part~1: Overview. ISO, 2022.
+\bibitem{ref-en-iso-iec-25012-2008} ISO/IEC. ISO/IEC~25012:2008 --- Software engineering --- Software product Quality Requirements and Evaluation (SQuaRE) --- Data quality model. ISO, 2008.
+\bibitem{ref-en-ehrlinger-woess-2022} Ehrlinger L., W{\"o}{\ss} W. A Survey of Data Quality Measurement and Monitoring Tools. Frontiers in Big Data, 2022, vol.~5, 850611.
+\bibitem{ref-en-schelter-2018} Schelter S. et al. Automating Large-Scale Data Quality Verification. PVLDB, 2018, vol.~11, no.~12, pp.~1781--1794.
+\bibitem{ref-en-yang-2025} Yang H. et al. Unlocking the Power of CI/CD for Data Pipelines in Distributed Data Warehouses. PVLDB, 2025, vol.~18, no.~12, pp.~4887--4895.
+\bibitem{ref-en-ong-2017} Ong T. et al. A Framework for Classification of Electronic Health Data Extraction-Transformation-Loading Challenges in Data Network Participation. eGEMs, 2017, vol.~5, no.~1, p.~10.
+\bibitem{ref-en-gx-docs} Great Expectations. Great Expectations Documentation, 2025.
+\bibitem{ref-en-soda-docs} Soda. Soda Documentation, 2025.
+\end{thebibliography}
+
+\end{translatedpart}
+
+\end{document}

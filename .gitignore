@@ -1,0 +1,26 @@
+# Build output (PDF + LaTeX aux files)
+/build/
+# /article/
+
+# Keep journal template folders locally (do not commit)
+/template*/
+/templates*/
+
+# Runtime artifacts
+# /logs/
+# /output/
+/.env
+
+# Fallback ignores (if someone builds in the source dir)
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+
+# Python cache
+__pycache__/
+*.pyc

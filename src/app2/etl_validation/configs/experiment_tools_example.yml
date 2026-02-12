@@ -1,0 +1,16 @@
+experiment:
+  name: tools_stage_comparison
+
+  baseline:
+    stg_run_id: "manual__2026-01-09T10:59:39.137217+00:00"
+    dds_run_id: "manual__2026-01-09T11:19:56.607627+00:00"
+
+  defaults:
+    output_dir: "/opt/airflow/post_validation_reports/etl_stage"
+    include_experiments: true
+    only_unprocessed: true
+    repeats: 10
+    tools_by_stage:
+      E: ["gx", "soda"]
+      T: ["dbt", "gx", "soda", "sql"]
+      L: ["gx", "soda", "dbt"]
