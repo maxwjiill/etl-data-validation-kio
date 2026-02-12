@@ -1,14 +1,14 @@
 # Build output (PDF + LaTeX aux files)
 /build/
-# /article/
+/article/
 
 # Keep journal template folders locally (do not commit)
-/template*/
-/templates*/
+article/template
+article/template2
 
 # Runtime artifacts
 # /logs/
-# /output/
+/output/
 .venv/
 /.env
 
