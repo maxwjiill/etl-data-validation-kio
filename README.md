@@ -5,7 +5,7 @@ This repository contains a reproducible experimental setup for ETL data validati
 ## Authors and contributors
 
 - **Maksim A. Metelkin** — main author, Student at SPbPU ICSC
-- **Vladimir A. Parkhomenko** — advisor, Senior Lecturer at SPbPU ICSC
+- **Vladimir A. Parkhomenko** — advisor and minor contributor, Senior Lecturer at SPbPU ICSC
 
 ## Data
 
