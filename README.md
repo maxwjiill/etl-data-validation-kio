@@ -2,6 +2,8 @@
 
 This repository contains a reproducible experimental setup for ETL data validation in a PostgreSQL-based pipeline using football API payloads. The main goal is to compare practical trade-offs between validation approaches while keeping checks logically comparable across ETL stages.
 
+The project is completed during the preparation of Maksim A. Metelkin's bachelor thesis at SPbPU Institute of Computer Science and Cybersecurity (SPbPU ICSC).
+
 ## Authors and contributors
 
 - **Maksim A. Metelkin** — main author, Student at SPbPU ICSC
