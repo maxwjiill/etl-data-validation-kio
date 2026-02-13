@@ -25,6 +25,25 @@ def _docker_health(container_name: str) -> str:
     return completed.stdout.strip()
 
 
+def _container_exists(container_name: str) -> bool:
+    completed = subprocess.run(
+        ["docker", "ps", "-a", "--filter", f"name=^/{container_name}$", "--format", "{{.ID}}"],
+        text=True,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        details = (completed.stderr or completed.stdout or "").strip()
+        raise RuntimeError(f"Failed to check container '{container_name}': {details}")
+    return bool(completed.stdout.strip())
+
+
+def _remove_stale_container(container_name: str, *, cwd: Path) -> None:
+    if not _container_exists(container_name):
+        return
+    print(f"Removing stale container '{container_name}'...")
+    _run(["docker", "rm", "-f", container_name], cwd=cwd)
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Reset and start temporary experiment postgres in Docker.")
     parser.add_argument("--container", default="etl_kio_postgres")
@@ -39,6 +58,7 @@ def main() -> None:
     if not compose_file.exists():
         raise FileNotFoundError(f"Missing compose file: {compose_file}")
 
+    _remove_stale_container(args.container, cwd=repo_root)
     print("Resetting temporary PostgreSQL container and volume...")
     _run(["docker", "compose", "-f", str(compose_file), "down", "-v"], cwd=repo_root)
     _run(["docker", "compose", "-f", str(compose_file), "up", "-d", "postgres"], cwd=repo_root)

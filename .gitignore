@@ -11,6 +11,7 @@ article/template2
 /output/
 .venv/
 /.env
+/dbt_packages/
 
 # Fallback ignores (if someone builds in the source dir)
 *.aux
