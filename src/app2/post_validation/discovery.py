@@ -12,7 +12,7 @@ class PostValidationTarget:
     baseline_stg_run_id: str
     stg_run_id: str
     dds_run_id: str
-    kind: str  # baseline|experiment
+    kind: str
 
 
 def _fetch_scalar(conn, stmt, params) -> str | None:

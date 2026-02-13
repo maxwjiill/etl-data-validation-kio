@@ -93,7 +93,6 @@ def run_stage_validation_gx(
     if engine is None:
         engine = get_engine()
 
-    # Переиспользуем GX контекст и datasource, если они переданы
     if gx_context is None or gx_datasource is None:
         conn_str = (
             f"postgresql+psycopg2://{settings.postgres_user}:{settings.postgres_password}"

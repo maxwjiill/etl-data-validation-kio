@@ -8,7 +8,7 @@ from sqlalchemy.engine import Engine
 
 @dataclass(frozen=True)
 class StageTarget:
-    stage: str  # E | T | L
+    stage: str
     run_id: str
     parent_run_id: str
     stg_run_id: str | None

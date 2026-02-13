@@ -879,7 +879,7 @@ def run_experiment(cfg: ExperimentConfig, output_dir: Path) -> Path:
                 dds_run_id=dds_run_id,
                 status=status,
                 error_message=err,
-                configs=configs_used,  # type: ignore[arg-type]
+                configs=configs_used,
                 snapshots=snapshots,
                 steps=steps,
             )

@@ -54,6 +54,24 @@ This project is open for use in educational purposes and is licensed under the M
 
 ## Manual Run (`scripts/run_manual_experiments.py`)
 
+Prerequisites:
+
+- Python 3.12+.
+- Docker Engine / Docker Desktop is running if you use `--start-temp-db`.
+- Install dependencies:
+
+```bash
+pip install -r requirements.experiments.txt
+```
+
+Database connection defaults (used if `.env` is missing):
+
+- `POSTGRES_DB=vkr_data`
+- `POSTGRES_USER=admin`
+- `POSTGRES_PASSWORD=pass`
+- `POSTGRES_HOST=localhost`
+- `POSTGRES_PORT=55432`
+
 Run:
 
 ```bash

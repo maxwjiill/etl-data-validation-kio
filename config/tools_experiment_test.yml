@@ -1,8 +1,8 @@
 experiment:
   name: tools_stage_comparison
   baseline:
-    stg_run_id: manual_input_stg_20260213_091606
-    dds_run_id: manual_input_dds_20260213_091606
+    stg_run_id: manual_input_stg_20260213_093510
+    dds_run_id: manual_input_dds_20260213_093510
   defaults:
     output_dir: logs/etl_stage_reports
     include_experiments: true

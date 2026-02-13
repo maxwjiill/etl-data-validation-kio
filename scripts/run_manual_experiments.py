@@ -293,7 +293,7 @@ def _resolve_existing_path(path_str: str) -> Path:
     raise FileNotFoundError(f"Cannot resolve config path: {path_str}")
 
 
-def _normalize_mutation_defaults_paths(config_path: Path) -> None:
+def _validate_mutation_defaults_paths(config_path: Path) -> None:
     data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     defaults = (data.get("experiment", {}) or {}).get("defaults", {})
     if not isinstance(defaults, dict):
@@ -305,19 +305,21 @@ def _normalize_mutation_defaults_paths(config_path: Path) -> None:
         "stg_validation_config",
         "dds_validation_config",
     ]
-    changed = False
     for key in keys:
         value = defaults.get(key)
         if not isinstance(value, str) or not value.strip():
             continue
-        resolved = _resolve_existing_path(value.strip())
-        as_posix = resolved.as_posix()
-        if defaults[key] != as_posix:
-            defaults[key] = as_posix
-            changed = True
+        _resolve_existing_path(value.strip())
 
-    if changed:
-        config_path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+def _to_repo_relative_path_str(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return resolved.as_posix()
 
 
 def _run_tools(config_path: Path, output_dir: Path, dag_id: str) -> list[dict[str, Any]]:
@@ -563,9 +565,12 @@ def main() -> None:
     tools_results: list[dict[str, Any]] = []
     summary_csv: Path | None = None
     db_log_path: Path | None = None
+    temp_db_started = False
 
     try:
         _start_temp_db_if_requested(args.start_temp_db)
+        if args.start_temp_db:
+            temp_db_started = True
 
         input_root = Path(args.input_dir)
         if not input_root.is_absolute():
@@ -585,7 +590,7 @@ def main() -> None:
 
         _set_baseline_ids(tools_config_path, baseline)
         _set_baseline_ids(mutation_config_path, baseline)
-        _normalize_mutation_defaults_paths(mutation_config_path)
+        _validate_mutation_defaults_paths(mutation_config_path)
         logging.info("Baseline IDs updated in config files")
 
         if not args.skip_mutations:
@@ -625,13 +630,13 @@ def main() -> None:
         logging.info("DB logs exported to: %s", db_log_path)
 
         run_context = {
-            "input_run_dir": str(input_run_dir),
+            "input_run_dir": _to_repo_relative_path_str(input_run_dir),
             "stg_run_id": stg_run_id,
             "dds_run_id": dds_run_id,
             "tools_dag_id": tools_dag_id if not args.skip_tools else None,
-            "mutation_report_path": str(mutation_report_path) if mutation_report_path else None,
-            "summary_csv": str(summary_csv) if summary_csv else None,
-            "db_log_path": str(db_log_path) if db_log_path else None,
+            "mutation_report_path": _to_repo_relative_path_str(mutation_report_path),
+            "summary_csv": _to_repo_relative_path_str(summary_csv),
+            "db_log_path": _to_repo_relative_path_str(db_log_path),
             "tools_results": tools_results,
             "timestamp": datetime.now().isoformat(),
         }
@@ -649,7 +654,7 @@ def main() -> None:
             print("DB logs:", db_log_path)
         print("Context file:", context_path)
     finally:
-        if args.start_temp_db and not args.keep_temp_db:
+        if temp_db_started and not args.keep_temp_db:
             try:
                 _stop_temp_db_if_requested(True)
                 logging.info("Temporary DB container and volume removed")

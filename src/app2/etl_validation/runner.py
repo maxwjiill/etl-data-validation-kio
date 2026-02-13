@@ -66,7 +66,6 @@ def run_stage_tool(
 
     run_ids = [t.run_id for t in targets]
     
-    # Если повторов больше одного, очищаем все предыдущие записи для этого layer
     if repeats > 1:
         delete_validation_runs_for_layer(
             engine,
@@ -80,7 +79,6 @@ def run_stage_tool(
             run_ids=run_ids,
         )
     
-    # Для GX создаем контекст один раз и переиспользуем его между повторами
     gx_context = None
     gx_datasource = None
     if tool == "gx":
@@ -93,10 +91,8 @@ def run_stage_tool(
         gx_context = gx.get_context(mode="ephemeral")
         gx_datasource = _add_postgres_datasource(gx_context, conn_str)
     
-    # Выполняем повторы
     for repeat_num in range(1, repeats + 1):
-        
-        # Запускаем валидацию
+
         if tool == "gx":
             reports = run_stage_validation_gx(
                 dag_id=dag_id,

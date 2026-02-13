@@ -7,7 +7,6 @@ from app2.validators import load_config
 
 
 def run_dds_referential_suite(engine, dag_id: str, run_id: str, parent_run_id: str, conn=None):
-    # Local import to avoid circular dependency with runner
     from app2.validators.runner import run_validation
 
     cfg = load_config("DDS")
