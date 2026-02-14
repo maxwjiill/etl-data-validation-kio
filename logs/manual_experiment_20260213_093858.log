@@ -1,0 +1,22 @@
+2026-02-13 09:38:58,705 INFO root - Logs: D:\Study\10\git\etl-data-validation-kio\logs\manual_experiment_20260213_093858.log
+2026-02-13 09:38:58,706 INFO root - Local input mode enabled. External football API client is not used in this run.
+2026-02-13 09:38:59,195 ERROR root - Failed to stop temporary DB
+Traceback (most recent call last):
+  File "D:\Study\10\git\etl-data-validation-kio\scripts\run_manual_experiments.py", line 570, in main
+    _start_temp_db_if_requested(args.start_temp_db)
+  File "D:\Study\10\git\etl-data-validation-kio\scripts\run_manual_experiments.py", line 424, in _start_temp_db_if_requested
+    subprocess.run([sys.executable, str(script)], check=True, cwd=REPO_ROOT)
+  File "C:\Users\Professional\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['C:\\Users\\Professional\\AppData\\Local\\Programs\\Python\\Python312\\python.exe', 'D:\\Study\\10\\git\\etl-data-validation-kio\\scripts\\start_temp_db.py']' returned non-zero exit status 1.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Study\10\git\etl-data-validation-kio\scripts\run_manual_experiments.py", line 656, in main
+    _stop_temp_db_if_requested(True)
+  File "D:\Study\10\git\etl-data-validation-kio\scripts\run_manual_experiments.py", line 433, in _stop_temp_db_if_requested
+    subprocess.run(
+  File "C:\Users\Professional\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['docker', 'compose', '-f', 'D:\\Study\\10\\git\\etl-data-validation-kio\\docker-compose.experiments.yml', 'down', '-v']' returned non-zero exit status 1.

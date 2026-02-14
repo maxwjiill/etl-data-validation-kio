@@ -1,0 +1,71 @@
+2026-02-13 09:35:03,753 INFO root - Logs: D:\Study\10\git\etl-data-validation-kio\logs\manual_experiment_20260213_093503.log
+2026-02-13 09:35:03,753 INFO root - Local input mode enabled. External football API client is not used in this run.
+2026-02-13 09:35:11,519 INFO root - Loaded STG rows: 116
+2026-02-13 09:35:11,581 INFO app2.dds.load_dds - Loading dim_area
+2026-02-13 09:35:11,587 INFO app2.dds.load_dds - Loading dim_competition
+2026-02-13 09:35:11,591 INFO app2.dds.load_dds - Loading dim_team
+2026-02-13 09:35:11,600 INFO app2.dds.load_dds - Loading dim_season
+2026-02-13 09:35:11,632 INFO app2.dds.load_dds - Loading fact_match
+2026-02-13 09:35:11,815 INFO app2.dds.load_dds - Loading fact_match_score
+2026-02-13 09:35:11,916 INFO app2.dds.load_dds - Loading fact_standing
+2026-02-13 09:35:11,974 INFO root - DDS load finished: manual_input_dds_20260213_093510
+2026-02-13 09:35:11,985 INFO root - Baseline IDs updated in config files
+2026-02-13 09:35:12,018 INFO great_expectations.data_context.data_context.context_factory - Could not find local file-backed GX project
+2026-02-13 09:35:12,019 INFO great_expectations.data_context.types.base - Created temporary directory 'C:\Users\PROFES~1\AppData\Local\Temp\tmpru2sl7q1' for ephemeral docs site
+2026-02-13 09:35:12,020 INFO great_expectations.datasource.fluent.config - Loading 'datasources' ->
+[]
+2026-02-13 09:35:12,078 INFO great_expectations.datasource.data_connector.batch_filter - batch_slice: None was parsed to: slice(0, None, None)
+2026-02-13 09:35:12,080 WARNING py.warnings - D:\Study\10\git\etl-data-validation-kio\.venv\Lib\site-packages\great_expectations\expectations\expectation.py:1519: UserWarning: `result_format` configured at the Validator-level will not be persisted. Please add the configuration to your Checkpoint config or checkpoint_run() method instead.
+  warnings.warn(
+
+2026-02-13 09:35:12,496 INFO great_expectations.validator.validator - 	4 expectation(s) included in expectation_suite.
+2026-02-13 09:35:12,874 INFO soda.scan - [09:35:12] Soda Core 3.5.6
+2026-02-13 09:35:12,930 INFO soda.scan - [09:35:12] Using DefaultSampler
+2026-02-13 09:35:12,936 INFO soda.scan - [09:35:12] Using DefaultSampler
+2026-02-13 09:35:12,949 INFO soda.scan - [09:35:12] Using DefaultSampler
+2026-02-13 09:35:12,959 INFO soda.scan - [09:35:12] Using DefaultSampler
+2026-02-13 09:35:12,959 INFO soda.scan - [09:35:12] Scan summary:
+2026-02-13 09:35:12,959 INFO soda.scan - [09:35:12] 4/4 checks PASSED: 
+2026-02-13 09:35:12,959 INFO soda.scan - [09:35:12]     stg_schema_matches_key_missing [PASSED]
+2026-02-13 09:35:12,959 INFO soda.scan - [09:35:12]     stg_missing_match_id [PASSED]
+2026-02-13 09:35:12,959 INFO soda.scan - [09:35:12]     stg_matchday_out_of_range [PASSED]
+2026-02-13 09:35:12,959 INFO soda.scan - [09:35:12]     stg_duplicate_match_id [PASSED]
+2026-02-13 09:35:12,960 INFO soda.scan - [09:35:12] All is good. No failures. No warnings. No errors.
+2026-02-13 09:35:16,253 INFO great_expectations.data_context.data_context.context_factory - Could not find local file-backed GX project
+2026-02-13 09:35:16,253 INFO great_expectations.data_context.types.base - Created temporary directory 'C:\Users\PROFES~1\AppData\Local\Temp\tmpo8h21mqt' for ephemeral docs site
+2026-02-13 09:35:16,254 INFO great_expectations.datasource.fluent.config - Loading 'datasources' ->
+[]
+2026-02-13 09:35:16,309 INFO great_expectations.datasource.data_connector.batch_filter - batch_slice: None was parsed to: slice(0, None, None)
+2026-02-13 09:35:17,272 INFO great_expectations.validator.validator - 	4 expectation(s) included in expectation_suite.
+2026-02-13 09:35:18,096 INFO soda.scan - [09:35:18] Soda Core 3.5.6
+2026-02-13 09:35:18,135 INFO soda.scan - [09:35:18] Using DefaultSampler
+2026-02-13 09:35:18,137 INFO soda.scan - [09:35:18] Using DefaultSampler
+2026-02-13 09:35:18,223 INFO soda.scan - [09:35:18] Using DefaultSampler
+2026-02-13 09:35:18,225 INFO soda.scan - [09:35:18] Using DefaultSampler
+2026-02-13 09:35:18,225 INFO soda.scan - [09:35:18] Scan summary:
+2026-02-13 09:35:18,225 INFO soda.scan - [09:35:18] 4/4 checks PASSED: 
+2026-02-13 09:35:18,226 INFO soda.scan - [09:35:18]     dds_duplicate_fact_match [PASSED]
+2026-02-13 09:35:18,226 INFO soda.scan - [09:35:18]     dds_missing_home_away_team [PASSED]
+2026-02-13 09:35:18,226 INFO soda.scan - [09:35:18]     dds_referential_integrity_violation [PASSED]
+2026-02-13 09:35:18,226 INFO soda.scan - [09:35:18]     dds_matchday_out_of_range [PASSED]
+2026-02-13 09:35:18,226 INFO soda.scan - [09:35:18] All is good. No failures. No warnings. No errors.
+2026-02-13 09:35:18,341 INFO great_expectations.data_context.data_context.context_factory - Could not find local file-backed GX project
+2026-02-13 09:35:18,342 INFO great_expectations.data_context.types.base - Created temporary directory 'C:\Users\PROFES~1\AppData\Local\Temp\tmpe3_23l7b' for ephemeral docs site
+2026-02-13 09:35:18,343 INFO great_expectations.datasource.fluent.config - Loading 'datasources' ->
+[]
+2026-02-13 09:35:18,380 INFO great_expectations.datasource.data_connector.batch_filter - batch_slice: None was parsed to: slice(0, None, None)
+2026-02-13 09:35:20,138 INFO great_expectations.validator.validator - 	3 expectation(s) included in expectation_suite.
+2026-02-13 09:35:21,753 INFO soda.scan - [09:35:21] Soda Core 3.5.6
+2026-02-13 09:35:21,827 INFO soda.scan - [09:35:21] Using DefaultSampler
+2026-02-13 09:35:21,853 INFO soda.scan - [09:35:21] Using DefaultSampler
+2026-02-13 09:35:21,994 INFO soda.scan - [09:35:21] Using DefaultSampler
+2026-02-13 09:35:21,994 INFO soda.scan - [09:35:21] Scan summary:
+2026-02-13 09:35:21,996 INFO soda.scan - [09:35:21] 3/3 checks PASSED: 
+2026-02-13 09:35:21,996 INFO soda.scan - [09:35:21]     mart_kpi_rate_out_of_bounds [PASSED]
+2026-02-13 09:35:21,996 INFO soda.scan - [09:35:21]     mart_kpi_missing_dates [PASSED]
+2026-02-13 09:35:21,996 INFO soda.scan - [09:35:21]     mart_duplicate_team_rows [PASSED]
+2026-02-13 09:35:21,996 INFO soda.scan - [09:35:21] All is good. No failures. No warnings. No errors.
+2026-02-13 09:35:25,249 INFO root - Stage tool runs completed (report artifacts disabled)
+2026-02-13 09:35:25,249 INFO root - Stage tool runs: 9
+2026-02-13 09:35:25,336 INFO root - DB logs exported to: D:\Study\10\git\etl-data-validation-kio\logs\db_export_20260213_093525.log
+2026-02-13 09:35:26,741 INFO root - Temporary DB container and volume removed

@@ -8,7 +8,7 @@ article/template2
 
 # Runtime artifacts
 # /logs/
-/output/
+# /output/
 .venv/
 /.env
 /dbt_packages/
@@ -19,7 +19,7 @@ article/template2
 *.blg
 *.fdb_latexmk
 *.fls
-*.log
+# *.log
 *.out
 *.synctex.gz
 
